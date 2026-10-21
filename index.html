@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulatore Quiz Nautica</title>
+    <title>Simulatore Quiz Nautica - Lezione 1</title>
     <!-- Libreria per leggere i file Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
@@ -11,7 +11,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteField, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
         // CONFIGURAZIONE FIREBASE REALE
         const firebaseConfig = {
             apiKey: "AIzaSyBSSCEkAwy1HF3h2YCpHOz9aNuCnsJ40g",
@@ -21,14 +20,11 @@
             messagingSenderId: "123456789012",
             appId: "1:123456789012:web:nauticavera"
         };
-
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-
         // Rendiamo le funzioni di Firebase accessibili all'oggetto globale App
         window.FB = { db, doc, getDoc, setDoc, updateDoc, deleteField, collection, getDocs };
     </script>
-
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -239,7 +235,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>Simulatore Quiz Nautica</h1>
+    <h1>Simulatore Quiz Nautica - Lezione 1</h1>
     
     <!-- 1. SEZIONE GESTIONE ALLIEVI -->
     <div id="section-user" class="section active">
@@ -268,10 +264,13 @@
         <div class="file-info">
             File attivo: <b>lezione1.xlsx</b>
         </div>
-        <button class="btn" onclick="App.avviaQuizCompleto()">Avvia o Riprendi Quiz Completo</button><br><br>
+        <button class="btn" onclick="App.avviaQuizCompleto()">Avvia o Riprendi Quiz Completo</button><br>
+        <button class="btn btn-delete" style="font-size:12px; padding:6px 12px;" onclick="App.riavviaDaZero()">🔄 Azzera Progressi e Ripartisci</button><br><br>
+        
         <button id="btnRipassoErrori" class="btn-review-quiz" onclick="App.avviaRipassoErrori()" style="display: none;">
             🔄 Avvia Ripasso Solo Errori (<span id="countErrori">0</span>)
         </button><br><br>
+        
         <button id="btnVisualizzaErrori" class="btn-warning" onclick="App.mostraElencoErrori()">📖 Visualizza Elenco Domande Errate (0)</button>
     </div>
 
@@ -282,18 +281,21 @@
             <button class="btn btn-secondary" onclick="App.tornaAlMenu()">Menu Principale</button>
         </div>
         <div id="badgeModalita" style="text-align: center;"></div>
-        <div class="image-container">
-            <img id="imgDomanda" src="" alt="Figura Quiz">
+        
+        <div id="quizContent">
+            <div class="image-container">
+                <img id="imgDomanda" src="" alt="Figura Quiz">
+            </div>
+            <div class="question-text" id="txtDomanda">Caricamento...</div>
+            <div id="containerOpzioni">
+                <label class="option-label" id="lblOpt0"><input type="radio" name="risposta" value="0"><span id="spanOpt0"></span></label>
+                <label class="option-label" id="lblOpt1"><input type="radio" name="risposta" value="1"><span id="spanOpt1"></span></label>
+                <label class="option-label" id="lblOpt2"><input type="radio" name="risposta" value="2"><span id="spanOpt2"></span></label>
+            </div>
+            <button class="btn btn-submit" id="btnConferma" onclick="App.gestisciAzione()">Conferma Risposta</button>
+            <div id="boxFeedback" class="feedback"></div>
+            <div id="statsQuiz" style="margin-top:15px; font-weight:bold;">Domande rimanenti: 0 | ❌ Errori registrati: 0</div>
         </div>
-        <div class="question-text" id="txtDomanda">Caricamento...</div>
-        <div id="containerOpzioni">
-            <label class="option-label" id="lblOpt0"><input type="radio" name="risposta" value="0"><span id="spanOpt0"></span></label>
-            <label class="option-label" id="lblOpt1"><input type="radio" name="risposta" value="1"><span id="spanOpt1"></span></label>
-            <label class="option-label" id="lblOpt2"><input type="radio" name="risposta" value="2"><span id="spanOpt2"></span></label>
-        </div>
-        <button class="btn btn-submit" id="btnConferma" onclick="App.gestisciAzione()">Conferma Risposta</button>
-        <div id="boxFeedback" class="feedback"></div>
-        <div id="statsQuiz">Domande rimanenti: 0 | ❌ Errori registrati: 0</div>
     </div>
 
     <!-- 4. SEZIONE ELENCO ERRORI -->
@@ -307,7 +309,10 @@
 </div>
 
 <script>
+    // NOME FILE EXCEL PER QUESTA LEZIONE
     const FILE_EXCEL = "lezione1.xlsx";
+    // NOME COLLEZIONE DEDICATA SU FIREBASE PER NON SOVRASCRIVERE ALTRI QUIZ
+    const FIREBASE_COLLECTION = "nautica_utenti_dati_lez1";
 
     const App = {
         utenti: [],
@@ -413,7 +418,7 @@
                 this.utenti = this.utenti.filter(u => u !== nome);
                 await this.salvaUtentiCloud();
                 try {
-                    let ref = window.FB.doc(window.FB.db, "nautica_utenti_dati", nome);
+                    let ref = window.FB.doc(window.FB.db, FIREBASE_COLLECTION, nome);
                     await window.FB.setDoc(ref, { pool: [], corrente: null, errori: [] });
                 } catch(e) {}
                 this.aggiornaSelectUtenti();
@@ -444,7 +449,7 @@
         async caricaDatiUtente() {
             document.getElementById("displayUserMenu").textContent = `Allievo: ${this.utenteCorrente}`;
             try {
-                let ref = window.FB.doc(window.FB.db, "nautica_utenti_dati", this.utenteCorrente);
+                let ref = window.FB.doc(window.FB.db, FIREBASE_COLLECTION, this.utenteCorrente);
                 let snap = await window.FB.getDoc(ref);
                 if (snap.exists()) {
                     let data = snap.data();
@@ -469,7 +474,7 @@
         async salvaStatoCloud() {
             if (this.utenteCorrente) {
                 try {
-                    let ref = window.FB.doc(window.FB.db, "nautica_utenti_dati", this.utenteCorrente);
+                    let ref = window.FB.doc(window.FB.db, FIREBASE_COLLECTION, this.utenteCorrente);
                     let datiDaSalvare = {
                         errori: this.cronologiaErrori
                     };
@@ -514,7 +519,7 @@
                 this.poolDomande = tempPool;
                 if (callback) callback();
             } catch (e) {
-                alert("Errore nel caricamento del file Excel dei quiz. Assicurati che 'lezione1.xlsx' sia presente.");
+                alert(`Errore nel caricamento del file Excel dei quiz. Assicurati che '${FILE_EXCEL}' sia presente.`);
             }
         },
 
@@ -532,6 +537,17 @@
             for (let i = arr.length - 1; i > 0; i--) {
                 let j = Math.floor(Math.random() * (i + 1));
                 [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+        },
+
+        async riavviaDaZero() {
+            if (confirm("Vuoi azzerare il quiz e ricominciare da capo tutte le domande?")) {
+                this.poolDomande = [];
+                this.domandaCorrente = null;
+                await this.scaricaEProcessaExcel(async () => {
+                    await this.salvaStatoCloud();
+                    alert("Quiz azzerato con successo! Puoi ripartire.");
+                });
             }
         },
 
@@ -572,6 +588,9 @@
             document.getElementById("displayUserQuiz").textContent = `Allievo: ${this.utenteCorrente}`;
             let badge = document.getElementById("badgeModalita");
             badge.innerHTML = this.modalitaRipasso ? `<span class="badge-mode">🔄 MODALITÀ RIPASSO ERRORI</span>` : "";
+            
+            document.getElementById("quizContent").style.display = "block";
+            
             if (this.domandaCorrente && !this.modalitaRipasso) {
                 this.mostraDomandaCorrente();
                 return;
@@ -595,13 +614,23 @@
                     this.domandaCorrente = null;
                     this.salvaStatoCloud();
                 }
-                document.getElementById("section-quiz").innerHTML = `
+                document.getElementById("quizContent").style.display = "none";
+                let feedbackFin = document.createElement("div");
+                feedbackFin.id = "quizFinishMsg";
+                feedbackFin.innerHTML = `
                     <h2>🎉 Complimenti ${this.utenteCorrente}!</h2>
-                    <p>Hai completato tutte le domande con successo.</p><br>
-                    <button class="btn" onclick="location.reload()">Torna al Menu Principale</button>
+                    <p>Hai completato tutte le domande disponibili in questo modulo.</p><br>
+                    <button class="btn" onclick="App.tornaAlMenu()">Torna al Menu Principale</button>
                 `;
+                let existingMsg = document.getElementById("quizFinishMsg");
+                if (existingMsg) existingMsg.remove();
+                document.getElementById("section-quiz").appendChild(feedbackFin);
                 return;
             }
+            
+            let existingMsg = document.getElementById("quizFinishMsg");
+            if (existingMsg) existingMsg.remove();
+
             this.domandaCorrente = this.poolDomande.shift();
             this.salvaStatoCloud();
             this.mostraDomandaCorrente();
